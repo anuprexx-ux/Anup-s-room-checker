@@ -15,6 +15,7 @@ class ResultView extends View {
     }
     int col(int k) { return k == 0 ? 0xFF00C853 : (k == 1 ? 0xFFFFC107 : 0xFFFF1744); }
     protected void onDraw(Canvas c) {
+               int[] loc = new int[2]; getLocationOnScreen(loc); c.translate(-loc[0], -loc[1]);
         for (int i = 0; i < boxes.size(); i++) {
             Rect r = boxes.get(i); int k = cls.get(i);
             fill.setColor(col(k)); fill.setAlpha(70); c.drawRect(r, fill);
