@@ -1,111 +1,108 @@
 package com.room.checker;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.net.Uri;
-
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.io.InputStream;
+import java.util.*;
+import java.util.regex.*;
 
 class ListImport {
+    interface Done { void onList(String names, String report); }
 
-    interface Done {
-        void onList(String names);
+    static final Pattern NUM_ONLY = Pattern.compile("^(\\d{1,2})\\s*[.)\\-:]?$");
+    static final Pattern NUM_LEAD = Pattern.compile("^(\\d{1,2})\\s*[.)\\-:]\\s*(.+)$");
+
+    static void run(final Context ctx, final List<Uri> uris, final Done done) {
+        final TextRecognizer rec = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        final TreeMap<Integer, String> byNum = new TreeMap<>();
+        final List<String> loose = new ArrayList<>();
+        step(ctx, rec, uris, 0, byNum, loose, done);
     }
 
-    private static class Item {
-        int top;
-        String s;
-    }
-
-    private final TextRecognizer recognizer =
-            TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-
-    void run(Context ctx, List<Uri> uris, String old, Done done) {
-        final int count = uris.size();
-        final List<List<String>> parts = new ArrayList<>();
-        for (int i = 0; i < count; i++) parts.add(new ArrayList<String>());
-        final int[] left = {count};
-        for (int i = 0; i < count; i++) {
-            final int index = i;
-            try {
-                InputImage image = InputImage.fromFilePath(ctx, uris.get(i));
-                final int h = image.getHeight();
-                recognizer.process(image)
-                        .addOnSuccessListener(text -> {
-                            parts.set(index, names(text, h));
-                            finish(old, parts, left, done);
-                        })
-                        .addOnFailureListener(e -> finish(old, parts, left, done));
-            } catch (Exception ex) {
-                finish(old, parts, left, done);
+    static void step(final Context ctx, final TextRecognizer rec, final List<Uri> uris, final int i,
+                     final TreeMap<Integer, String> byNum, final List<String> loose, final Done done) {
+        if (i >= uris.size()) { finish(byNum, loose, done); return; }
+        Bitmap bmp = null;
+        try {
+            InputStream in = ctx.getContentResolver().openInputStream(uris.get(i));
+            bmp = BitmapFactory.decodeStream(in);
+            in.close();
+        } catch (Exception e) { }
+        if (bmp == null) { step(ctx, rec, uris, i + 1, byNum, loose, done); return; }
+        final int h = bmp.getHeight();
+        rec.process(InputImage.fromBitmap(bmp, 0)).addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Text>() {
+            public void onSuccess(Text t) {
+                collect(t, h, byNum, loose);
+                step(ctx, rec, uris, i + 1, byNum, loose, done);
             }
-        }
+        }).addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+            public void onFailure(Exception e) { step(ctx, rec, uris, i + 1, byNum, loose, done); }
+        });
     }
 
-    private void finish(String old, List<List<String>> parts, int[] left, Done done) {
-        left[0]--;
-        if (left[0] > 0) return;
-        List<String> keys = new ArrayList<>();
-        StringBuilder sb = new StringBuilder();
-        for (String s : old.split("\n")) add(s.trim(), keys, sb);
-        for (List<String> part : parts) {
-            for (String s : part) add(s, keys, sb);
-        }
-        done.onList(sb.toString());
+    static boolean skip(String t) {
+        String l = t.toLowerCase(Locale.ROOT);
+        return l.contains("match details") || l.contains("entry fee") || l.startsWith("join")
+                || l.matches(".*\\d{1,2}:\\d{2}.*") || l.matches("^[\\u20b9\\s\\d.,]+$");
     }
 
-    private void add(String s, List<String> keys, StringBuilder sb) {
-        if (s.isEmpty()) return;
-        String k = NameMatch.norm(s);
-        String key = k.length() > 0 ? k : "raw:" + s;
-        if (keys.contains(key)) return;
-        keys.add(key);
-        sb.append(s).append('\n');
-    }
-
-    private List<String> names(Text text, int h) {
-        List<Item> items = new ArrayList<>();
-        for (Text.TextBlock blk : text.getTextBlocks()) {
-            for (Text.Line l : blk.getLines()) {
-                Rect r = l.getBoundingBox();
+    static void collect(Text t, int h, TreeMap<Integer, String> byNum, List<String> loose) {
+        List<Rect> nb = new ArrayList<>(); List<Integer> nv = new ArrayList<>();
+        List<Rect> tb = new ArrayList<>(); List<String> tv = new ArrayList<>();
+        for (Text.TextBlock b : t.getTextBlocks())
+            for (Text.Line ln : b.getLines()) {
+                Rect r = ln.getBoundingBox();
                 if (r == null) continue;
-                if (r.top < h * 0.095 || r.bottom > h * 0.875) continue;
-                String s = clean(l.getText());
-                if (s == null) continue;
-                Item it = new Item();
-                it.top = r.top;
-                it.s = s;
-                items.add(it);
+                String s = ln.getText().trim();
+                if (r.top < 0.095 * h || r.bottom > 0.87 * h || s.isEmpty() || skip(s)) continue;
+                Matcher m = NUM_ONLY.matcher(s);
+                if (m.matches()) { nb.add(r); nv.add(Integer.parseInt(m.group(1))); continue; }
+                tb.add(r); tv.add(s);
+            }
+        for (int i = 0; i < tv.size(); i++) {
+            String s = tv.get(i); Rect r = tb.get(i);
+            int num = -1;
+            Matcher m = NUM_LEAD.matcher(s);
+            if (m.matches()) { num = Integer.parseInt(m.group(1)); s = m.group(2).trim(); }
+            else {
+                int bd = Integer.MAX_VALUE;
+                for (int k = 0; k < nb.size(); k++) {
+                    Rect q = nb.get(k);
+                    int d = Math.abs(q.centerY() - r.centerY());
+                    if (d < Math.max(r.height(), q.height()) && q.right <= r.left + 10 && d < bd) { bd = d; num = nv.get(k); }
+                }
+            }
+            if (s.isEmpty()) continue;
+            if (num >= 1 && num <= 99) {
+                String old = byNum.get(num);
+                if (old == null || s.length() > old.length()) byNum.put(num, s);
+            } else {
+                boolean dup = false;
+                for (String o : loose) if (NameMatch.sim(NameMatch.norm(o), NameMatch.norm(s)) >= 0.85) dup = true;
+                if (!dup) loose.add(s);
             }
         }
-        Collections.sort(items, (x, y) -> Integer.compare(x.top, y.top));
-        List<String> out = new ArrayList<>();
-        for (Item it : items) out.add(it.s);
-        return out;
     }
 
-    private String clean(String raw) {
-        String s = raw.trim();
-        String low = s.toLowerCase();
-        if (low.matches(".*\\d{1,2}:\\d{2}.*")) return null;
-        if (low.contains("match details") || low.contains("entry fee")) return null;
-        s = s.replaceFirst("^\\d{1,2}\\s*[.)\\-:]\\s*", "");
-        s = s.replaceFirst("^\\d{1,2}\\s+(?=[^\\d\\s])", "");
-        s = s.trim();
-        if (s.matches("^\\d{1,2}$")) return null;
-        int cnt = 0;
-        for (char ch : s.toCharArray()) {
-            if (Character.isLetterOrDigit(ch)) cnt++;
+    static void finish(TreeMap<Integer, String> byNum, List<String> loose, Done done) {
+        StringBuilder sb = new StringBuilder();
+        for (String s : byNum.values()) sb.append(s).append('\n');
+        for (String s : loose) {
+            boolean dup = false;
+            for (String o : byNum.values()) if (NameMatch.sim(NameMatch.norm(o), NameMatch.norm(s)) >= 0.85) dup = true;
+            if (!dup) sb.append(s).append('\n');
         }
-        if (cnt < 2) return null;
-        return s;
+        StringBuilder miss = new StringBuilder();
+        if (!byNum.isEmpty())
+            for (int n = 1; n <= byNum.lastKey(); n++) if (!byNum.containsKey(n)) miss.append(n).append(' ');
+        done.onList(sb.toString(), miss.toString().trim());
     }
 }
