@@ -96,6 +96,25 @@ class NameMatch {
                 boxes.add(b);
             }
         }
+            boolean again = true;
+        while (again) {
+            again = false;
+            for (int i = 0; i < names.size() && !again; i++)
+                for (int j = i + 1; j < names.size() && !again; j++) {
+                    Rect a = boxes.get(i), c = boxes.get(j);
+                    int hh = Math.max(a.height(), c.height());
+                    if (Math.abs(a.centerY() - c.centerY()) > hh * 0.6) continue;
+                    Rect l = a.left <= c.left ? a : c, rr = a.left <= c.left ? c : a;
+                    int gap = rr.left - l.right;
+                    if (gap < -hh || gap > hh * 1.2) continue;
+                    String tl = a.left <= c.left ? names.get(i) : names.get(j);
+                    String tr = a.left <= c.left ? names.get(j) : names.get(i);
+                    Rect u = new Rect(Math.min(a.left, c.left), Math.min(a.top, c.top), Math.max(a.right, c.right), Math.max(a.bottom, c.bottom));
+                    names.set(i, tl + " " + tr); boxes.set(i, u);
+                    names.remove(j); boxes.remove(j);
+                    again = true;
+                }
+        }
         int n = names.size();
         double[] best = new double[n];
         int[] bi = new int[n];
