@@ -4,6 +4,7 @@ import android.graphics.Rect;
 import com.google.mlkit.vision.text.Text;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.regex.*;
 
 class NameMatch {
     static class Result {
@@ -11,7 +12,7 @@ class NameMatch {
         List<Integer> cls = new ArrayList<>();
         List<String> labels = new ArrayList<>();
         Set<Integer> hit = new HashSet<>();
-        int red, yel, grn;
+        int red, yel, grn, room = -1;
     }
 
     static String norm(String s) {
@@ -46,6 +47,12 @@ class NameMatch {
         if (a.equals(b)) return 1;
         int mn = Math.min(a.length(), b.length()), mx = Math.max(a.length(), b.length());
         if (mn >= 4 && (a.contains(b) || b.contains(a))) return mn * 2 >= mx ? 1.0 : 0.7;
+        return lev(a, b);
+    }
+
+    static double lev(String a, String b) {
+        if (a.isEmpty() || b.isEmpty()) return 0;
+        int mx = Math.max(a.length(), b.length());
         int[] p = new int[b.length() + 1], q = new int[b.length() + 1];
         for (int j = 0; j <= b.length(); j++) p[j] = j;
         for (int i = 1; i <= a.length(); i++) {
@@ -78,6 +85,8 @@ class NameMatch {
                 || n.contains("minimumlevel") || n.contains("changedto");
     }
 
+    static final Pattern CNT = Pattern.compile("^[(\\[]?\\s*(\\d{1,2})\\s*/\\s*(\\d{1,2})\\s*[)\\]]?$");
+
     static Result build(Text text, List<List<String>> reg, int rx, int ry, float scale,
                         int edgeTop, int edgeBottom) {
         Result r = new Result();
@@ -91,12 +100,17 @@ class NameMatch {
                         rx + (int) (b0.right / scale), ry + (int) (b0.bottom / scale));
                 String t = ln.getText().trim();
                 if (t.matches("[0-9]{1,2}")) continue;
+                Matcher cm = CNT.matcher(t);
+                if (cm.matches()) {
+                    if (Integer.parseInt(cm.group(2)) >= 10 && r.room < 0) r.room = Integer.parseInt(cm.group(1));
+                    continue;
+                }
                 if (junk(norm(t))) continue;
                 names.add(t);
                 boxes.add(b);
             }
         }
-            boolean again = true;
+        boolean again = true;
         while (again) {
             again = false;
             for (int i = 0; i < names.size() && !again; i++)
