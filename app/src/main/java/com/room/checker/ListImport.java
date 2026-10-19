@@ -18,7 +18,7 @@ class ListImport {
     interface Done { void onList(String names, String report); }
 
     static final Pattern NUM_ONLY = Pattern.compile("^(\\d{1,2})\\s*[.)\\-:]?$");
-    static final Pattern NUM_LEAD = Pattern.compile("^(\\d{1,2})\\s*[.)\\-:]\\s*(.+)$");
+    static final Pattern NUM_PRE = Pattern.compile("^(\\d{1,2})\\s*[.)\\-:]?\\s*(.+)$");
 
     static void run(final Context ctx, final List<Uri> uris, final Done done) {
         final TextRecognizer rec = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
@@ -37,10 +37,10 @@ class ListImport {
             in.close();
         } catch (Exception e) { }
         if (bmp == null) { step(ctx, rec, uris, i + 1, byNum, loose, done); return; }
-        final int h = bmp.getHeight();
+        final int h = bmp.getHeight(), w = bmp.getWidth();
         rec.process(InputImage.fromBitmap(bmp, 0)).addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Text>() {
             public void onSuccess(Text t) {
-                collect(t, h, byNum, loose);
+                collect(t, w, h, byNum, loose);
                 step(ctx, rec, uris, i + 1, byNum, loose, done);
             }
         }).addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
@@ -54,7 +54,7 @@ class ListImport {
                 || l.matches(".*\\d{1,2}:\\d{2}.*") || l.matches("^[\\u20b9\\s\\d.,]+$");
     }
 
-    static void collect(Text t, int h, TreeMap<Integer, String> byNum, List<String> loose) {
+    static void collect(Text t, int w, int h, TreeMap<Integer, String> byNum, List<String> loose) {
         List<Rect> nb = new ArrayList<>(); List<Integer> nv = new ArrayList<>();
         List<Rect> tb = new ArrayList<>(); List<String> tv = new ArrayList<>();
         for (Text.TextBlock b : t.getTextBlocks())
@@ -64,27 +64,33 @@ class ListImport {
                 String s = ln.getText().trim();
                 if (r.top < 0.095 * h || r.bottom > 0.87 * h || s.isEmpty() || skip(s)) continue;
                 Matcher m = NUM_ONLY.matcher(s);
-                if (m.matches()) { nb.add(r); nv.add(Integer.parseInt(m.group(1))); continue; }
+                if (m.matches() && r.left < 0.12 * w) { nb.add(r); nv.add(Integer.parseInt(m.group(1))); continue; }
                 tb.add(r); tv.add(s);
             }
         for (int i = 0; i < tv.size(); i++) {
             String s = tv.get(i); Rect r = tb.get(i);
             int num = -1;
-            Matcher m = NUM_LEAD.matcher(s);
-            if (m.matches()) { num = Integer.parseInt(m.group(1)); s = m.group(2).trim(); }
+            Matcher m = NUM_PRE.matcher(s);
+            if (r.left < 0.12 * w && m.matches()) { num = Integer.parseInt(m.group(1)); s = m.group(2).trim(); }
             else {
                 int bd = Integer.MAX_VALUE;
                 for (int k = 0; k < nb.size(); k++) {
                     Rect q = nb.get(k);
                     int d = Math.abs(q.centerY() - r.centerY());
-                    if (d < Math.max(r.height(), q.height()) && q.right <= r.left + 10 && d < bd) { bd = d; num = nv.get(k); }
+                    if (d < Math.max(r.height(), q.height()) * 0.8 && q.right <= r.left + 10 && d < bd) { bd = d; num = nv.get(k); }
                 }
             }
             if (s.isEmpty()) continue;
+            boolean added = false;
             if (num >= 1 && num <= 99) {
                 String old = byNum.get(num);
-                if (old == null || s.length() > old.length()) byNum.put(num, s);
-            } else {
+                if (old == null) { byNum.put(num, s); added = true; }
+                else if (NameMatch.sim(NameMatch.norm(old), NameMatch.norm(s)) >= 0.7) {
+                    if (s.length() > old.length()) byNum.put(num, s);
+                    added = true;
+                }
+            }
+            if (!added) {
                 boolean dup = false;
                 for (String o : loose) if (NameMatch.sim(NameMatch.norm(o), NameMatch.norm(s)) >= 0.85) dup = true;
                 if (!dup) loose.add(s);
