@@ -88,13 +88,13 @@ public class CheckerService extends Service {
     }
 
     void analyze(Bitmap b, final int w, final int h) {
-        final int rx = (int) (0.45 * w), ry = (int) (0.19 * h), rw = (int) (0.52 * w), rh = (int) (0.56 * h);
+                final int rx = (int) (0.35 * w), ry = (int) (0.18 * h), rw = (int) (0.60 * w), rh = (int) (0.58 * h);
         final float sc = 2f;
         Bitmap crop = Bitmap.createBitmap(b, rx, ry, Math.min(rw, w - rx), Math.min(rh, h - ry));
         Bitmap big = Bitmap.createScaledBitmap(crop, (int) (crop.getWidth() * sc), (int) (crop.getHeight() * sc), true);
         rec.process(InputImage.fromBitmap(big, 0)).addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Text>() {
             public void onSuccess(Text t) {
-                NameMatch.Result r = NameMatch.build(t, reg, rx, ry, sc, (int) (0.205 * h), (int) (0.71 * h));
+                NameMatch.Result r = NameMatch.build(t, reg, rx, ry, sc, (int) (0.20 * h), (int) (0.71 * h));
                 seen.addAll(r.hit);
                 String sum = "Unreg:" + r.red + "  Check:" + r.yel + "  OK:" + r.grn + "  | Mile:" + seen.size() + "/" + reg.size();
                 show(r, sum);
