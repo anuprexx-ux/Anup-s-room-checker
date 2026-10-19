@@ -97,7 +97,7 @@ public class CheckerService extends Service {
                 NameMatch.Result r = NameMatch.build(t, reg, rx, ry, sc, (int) (0.20 * h), (int) (0.71 * h));
                 seen.addAll(r.hit);
                 String sum = "Unreg:" + r.red + "  Check:" + r.yel + "  OK:" + r.grn + "  | Mile:" + seen.size() + "/" + reg.size();
-                if (r.room >= 0) sum += "  | Room:" + r.room + " Dikha:" + r.boxes.size() + (r.boxes.size() < r.room && r.room <= 14 ? " ⚠ SCROLL/CHECK" : "");
+                if (r.room >= 0) sum += "  | Room:" + r.room + " Dikha:" + r.boxes.size() + (r.boxes.size() < r.room && r.room <= 14 ? " !! SCROLL/CHECK" : "");
                 show(r, sum);
             }
         }).addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
