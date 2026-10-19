@@ -53,7 +53,7 @@ class ListParse {
             }
             if (!added) {
                 boolean dup = false;
-                for (String o : loose) if (NameMatch.lev(NameMatch.norm(o), NameMatch.norm(s)) >= 0.85) dup = true;
+                for (String o : loose) if (NameMatch.lev(NameMatch.norm(o), NameMatch.norm(s)) >= 0.78) dup = true;
                 if (!dup) loose.add(s);
             }
         }
@@ -64,7 +64,7 @@ class ListParse {
         for (String s : byNum.values()) sb.append(s).append('\n');
         for (String s : loose) {
             boolean dup = false;
-            for (String o : byNum.values()) if (NameMatch.lev(NameMatch.norm(o), NameMatch.norm(s)) >= 0.85) dup = true;
+            for (String o : byNum.values()) if (NameMatch.lev(NameMatch.norm(o), NameMatch.norm(s)) >= 0.78) dup = true;
             if (!dup) sb.append(s).append('\n');
         }
         StringBuilder miss = new StringBuilder();
