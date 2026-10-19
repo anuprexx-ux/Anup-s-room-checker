@@ -3,32 +3,29 @@ package com.room.checker;
 import android.content.Context;
 import android.graphics.*;
 import android.view.View;
+import java.util.ArrayList;
 import java.util.List;
 
 class ResultView extends View {
-    List<Rect> boxes; List<Integer> cls; List<String> labels; String summary;
-    Paint fill = new Paint(), line = new Paint(), txt = new Paint(), bar = new Paint();
-    ResultView(Context c, List<Rect> b, List<Integer> k, List<String> l, String s) {
-        super(c); boxes = b; cls = k; labels = l; summary = s;
-        line.setStyle(Paint.Style.STROKE); line.setStrokeWidth(5);
-        txt.setTextSize(34); txt.setFakeBoldText(true); bar.setColor(0xDD000000);
+    List<Rect> boxes = new ArrayList<>(); List<Integer> cls = new ArrayList<>(); String summary = "";
+    Paint txt = new Paint(), bar = new Paint();
+    ResultView(Context c) {
+        super(c);
+        txt.setTextSize(28); txt.setFakeBoldText(true);
     }
-    int col(int k) { return k == 0 ? 0xFF00C853 : (k == 1 ? 0xFFFFC107 : 0xFFFF1744); }
+    void set(List<Rect> b, List<Integer> k, String s) {
+        boxes = b; cls = k; summary = s; invalidate();
+    }
+    int col(int k) { return k == 0 ? 0xFF00E676 : (k == 1 ? 0xFFFFC107 : 0xFFFF1744); }
     protected void onDraw(Canvas c) {
         int[] loc = new int[2]; getLocationOnScreen(loc); c.translate(-loc[0], -loc[1]);
         for (int i = 0; i < boxes.size(); i++) {
-            Rect r = boxes.get(i); int k = cls.get(i);
-            fill.setColor(col(k)); fill.setAlpha(70); c.drawRect(r, fill);
-            line.setColor(col(k)); c.drawRect(r, line);
-            String s = labels.get(i);
-            if (s.length() > 0) {
-                float y = Math.max(r.top - 8, 150);
-                float w = txt.measureText(s);
-                bar.setColor(col(k)); c.drawRect(r.left, y - 34, r.left + w + 8, y + 8, bar);
-                txt.setColor(k == 1 ? 0xFF000000 : 0xFFFFFFFF); c.drawText(s, r.left + 4, y, txt);
-            }
+            Rect r = boxes.get(i);
+            bar.setColor(col(cls.get(i)));
+            c.drawRect(r.left - 16, r.top - 2, r.left - 4, r.bottom + 2, bar);
         }
-        bar.setColor(0xDD000000); c.drawRect(220, 0, 220 + txt.measureText(summary) + 20, 60, bar);
-        txt.setColor(0xFFFFFFFF); c.drawText(summary, 230, 42, txt);
+        bar.setColor(0xDD000000);
+        c.drawRect(220, 0, 220 + txt.measureText(summary) + 20, 50, bar);
+        txt.setColor(0xFFFFFFFF); c.drawText(summary, 230, 36, txt);
     }
 }
