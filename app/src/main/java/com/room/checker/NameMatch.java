@@ -85,6 +85,7 @@ class NameMatch {
                 || n.contains("minimumlevel") || n.contains("changedto");
     }
 
+        static final Pattern HDR = Pattern.compile("(\\d{1,2})\\s*/\\s*(\\d{2})(?!\\d)");
     static final Pattern CNT = Pattern.compile("^[(\\[]?\\s*(\\d{1,2})\\s*/\\s*(\\d{1,2})\\s*[)\\]]?$");
 
     static Result build(Text text, List<List<String>> reg, int rx, int ry, float scale,
@@ -99,6 +100,11 @@ class NameMatch {
                 Rect b = new Rect(rx + (int) (b0.left / scale), ry + (int) (b0.top / scale),
                         rx + (int) (b0.right / scale), ry + (int) (b0.bottom / scale));
                 String t = ln.getText().trim();
+                                if (b.bottom < edgeTop) {
+                    Matcher hm = HDR.matcher(t);
+                    if (hm.find() && r.room < 0) r.room = Integer.parseInt(hm.group(1));
+                    continue;
+                }
                 if (t.matches("[0-9]{1,2}")) continue;
                 Matcher cm = CNT.matcher(t);
                 if (cm.matches()) {
