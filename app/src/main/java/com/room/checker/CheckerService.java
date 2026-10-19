@@ -88,7 +88,7 @@ public class CheckerService extends Service {
     }
 
     void analyze(Bitmap b, final int w, final int h) {
-                final int rx = (int) (0.35 * w), ry = (int) (0.18 * h), rw = (int) (0.60 * w), rh = (int) (0.58 * h);
+        final int rx = (int) (0.35 * w), ry = (int) (0.12 * h), rw = (int) (0.60 * w), rh = (int) (0.68 * h);
         final float sc = 2f;
         Bitmap crop = Bitmap.createBitmap(b, rx, ry, Math.min(rw, w - rx), Math.min(rh, h - ry));
         Bitmap big = Bitmap.createScaledBitmap(crop, (int) (crop.getWidth() * sc), (int) (crop.getHeight() * sc), true);
@@ -97,6 +97,7 @@ public class CheckerService extends Service {
                 NameMatch.Result r = NameMatch.build(t, reg, rx, ry, sc, (int) (0.20 * h), (int) (0.71 * h));
                 seen.addAll(r.hit);
                 String sum = "Unreg:" + r.red + "  Check:" + r.yel + "  OK:" + r.grn + "  | Mile:" + seen.size() + "/" + reg.size();
+                if (r.room >= 0) sum += "  | Room:" + r.room + " Dikha:" + r.boxes.size() + (r.boxes.size() < r.room && r.room <= 14 ? " ⚠ SCROLL/CHECK" : "");
                 show(r, sum);
             }
         }).addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
