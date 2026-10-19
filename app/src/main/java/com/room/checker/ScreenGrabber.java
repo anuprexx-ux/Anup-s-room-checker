@@ -10,67 +10,39 @@ import android.media.projection.MediaProjection;
 import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.view.WindowManager;
-
 import java.nio.ByteBuffer;
 
 class ScreenGrabber {
+    interface Callback { void onBitmap(Bitmap b, int w, int h); void onFail(String m); }
 
-    interface Callback {
-        void onBitmap(Bitmap bmp, int w, int h);
-
-        void onFail(String msg);
-    }
-
-    static void grab(WindowManager wm, MediaProjection projection,
-                     Handler handler, Callback cb) {
-        try {
-            DisplayMetrics dm = new DisplayMetrics();
-            wm.getDefaultDisplay().getRealMetrics(dm);
-            final int w = dm.widthPixels;
-            final int h = dm.heightPixels;
-            final ImageReader reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
-            final VirtualDisplay vd = projection.createVirtualDisplay("rc", w, h, dm.densityDpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.getSurface(), null, handler);
-            final boolean[] done = {false};
-            reader.setOnImageAvailableListener(r -> {
+    static void grab(WindowManager wm, MediaProjection mp, final Handler hd, final Callback cb) {
+        final DisplayMetrics dm = new DisplayMetrics();
+        wm.getDefaultDisplay().getRealMetrics(dm);
+        final ImageReader ir = ImageReader.newInstance(dm.widthPixels, dm.heightPixels, PixelFormat.RGBA_8888, 2);
+        final VirtualDisplay vd = mp.createVirtualDisplay("rc", dm.widthPixels, dm.heightPixels, dm.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, ir.getSurface(), null, hd);
+        final boolean[] done = {false};
+        final Runnable timeout = new Runnable() { public void run() {
+            if (done[0]) return; done[0] = true; vd.release(); ir.close(); cb.onFail("Screen capture timeout"); } };
+        ir.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+            public void onImageAvailable(ImageReader r) {
                 if (done[0]) return;
-                Image img = r.acquireLatestImage();
-                if (img == null) return;
-                done[0] = true;
-                Bitmap bmp = null;
+                Image im = r.acquireLatestImage();
+                if (im == null) return;
+                done[0] = true; hd.removeCallbacks(timeout);
+                Bitmap b = null;
                 try {
-                    bmp = toBitmap(img, w, h);
-                } catch (Exception ignored) {
-                }
-                img.close();
-                vd.release();
-                r.close();
-                if (bmp == null) {
-                    cb.onFail("Screen capture fail");
-                } else {
-                    cb.onBitmap(bmp, w, h);
-                }
-            }, handler);
-            handler.postDelayed(() -> {
-                if (done[0]) return;
-                done[0] = true;
-                vd.release();
-                reader.close();
-                cb.onFail("Screen capture nahi hua, dobara try karo");
-            }, 4000);
-        } catch (Exception ex) {
-            cb.onFail("Capture error");
-        }
-    }
-
-    private static Bitmap toBitmap(Image img, int w, int h) {
-        Image.Plane p = img.getPlanes()[0];
-        ByteBuffer buf = p.getBuffer();
-        int pixelStride = p.getPixelStride();
-        int rowStride = p.getRowStride();
-        int rowPadding = rowStride - pixelStride * w;
-        Bitmap b = Bitmap.createBitmap(w + rowPadding / pixelStride, h, Bitmap.Config.ARGB_8888);
-        b.copyPixelsFromBuffer(buf);
-        return Bitmap.createBitmap(b, 0, 0, w, h);
+                    Image.Plane p = im.getPlanes()[0];
+                    ByteBuffer buf = p.getBuffer();
+                    int rs = p.getRowStride(), px = p.getPixelStride();
+                    Bitmap tmp = Bitmap.createBitmap(rs / px, dm.heightPixels, Bitmap.Config.ARGB_8888);
+                    tmp.copyPixelsFromBuffer(buf);
+                    b = Bitmap.createBitmap(tmp, 0, 0, dm.widthPixels, dm.heightPixels);
+                } catch (Exception e) { }
+                im.close(); vd.release(); ir.close();
+                if (b == null) cb.onFail("Bitmap error"); else cb.onBitmap(b, dm.widthPixels, dm.heightPixels);
+            }
+        }, hd);
+        hd.postDelayed(timeout, 4000);
     }
 }
