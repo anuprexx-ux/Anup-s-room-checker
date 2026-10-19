@@ -15,7 +15,7 @@ class ResultView extends View {
     }
     int col(int k) { return k == 0 ? 0xFF00C853 : (k == 1 ? 0xFFFFC107 : 0xFFFF1744); }
     protected void onDraw(Canvas c) {
-               int[] loc = new int[2]; getLocationOnScreen(loc); c.translate(-loc[0], -loc[1]);
+        int[] loc = new int[2]; getLocationOnScreen(loc); c.translate(-loc[0], -loc[1]);
         for (int i = 0; i < boxes.size(); i++) {
             Rect r = boxes.get(i); int k = cls.get(i);
             fill.setColor(col(k)); fill.setAlpha(70); c.drawRect(r, fill);
@@ -28,7 +28,7 @@ class ResultView extends View {
                 txt.setColor(k == 1 ? 0xFF000000 : 0xFFFFFFFF); c.drawText(s, r.left + 4, y, txt);
             }
         }
-        bar.setColor(0xDD000000); c.drawRect(150, 0, 150 + txt.measureText(summary) + 20, 60, bar);
-        txt.setColor(0xFFFFFFFF); c.drawText(summary, 160, 42, txt);
+        bar.setColor(0xDD000000); c.drawRect(220, 0, 220 + txt.measureText(summary) + 20, 60, bar);
+        txt.setColor(0xFFFFFFFF); c.drawText(summary, 230, 42, txt);
     }
 }
